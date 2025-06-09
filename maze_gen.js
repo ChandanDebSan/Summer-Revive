@@ -13,10 +13,15 @@ let lastShot = 0;
 let cooldown = 300;
 
 var enemies= [];
-
+let total_enemies = 12;
 let mazeGenerated = false;
+
+let startTime;
+let timerText = "";
+let enemyKills = 0;
 function setup(){
-    createCanvas(400,400);
+    let cnv = createCanvas(400,400);
+    cnv.parent('canvas-container');
     cols =  floor(width/w);
     rows = floor(height / w);
     //frameRate(5);
@@ -31,7 +36,7 @@ function setup(){
     start = grid[0];
     end = grid[grid.length - 1];
     enemies.push(new Enemy(cols - 1, rows - 1));
-
+    startTime = millis();
     
 }
 
@@ -62,6 +67,8 @@ function draw() {
             }
         }
     }else{
+
+        end = grid[grid.length - 1];
         //Draw Player
         fill(0, 255, 0);
         stroke(255);
@@ -79,11 +86,7 @@ function draw() {
 
         //Win Condition
         if(player === end){
-            noLoop();
-            fill(255);
-            textSize(32);
-            textAlign(CENTER, CENTER);
-            text("You Win!", width / 2, height / 2);
+            showEndScreen("🎉 You Win!");
         }
 
 
@@ -95,6 +98,7 @@ function draw() {
                 if(enemies[j].isHit(bullets[i].x, bullets[i].y)){
                     enemies.splice(j, 1);
                     bullets.splice(i ,1);
+                    enemyKills++;
                     break;
                 }
             }
@@ -103,22 +107,30 @@ function draw() {
             }
         }
 
-        end = grid[grid.length - 1];
         
-
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            enemies[i].update();
-            enemies[i].show();
-
-            // Check for player collision
-            if (enemies[i].i === player.i && enemies[i].j === player.j) {
-                noLoop();
-                fill(255);
-                textSize(32);
-                textAlign(CENTER, CENTER);
-                text("You Lose!", width / 2, height / 2);
+        //More Enemy Spawn logic
+        if(enemies.length === 0){
+            for(let n = 0; n < total_enemies; n++){
+                let i,j,idx;
+                do{
+                    i = floor(random(cols));
+                    j = floor(random(rows));
+                    idx = index(i, j);
+                }while((grid[idx] === player || enemies.some(e => e.i === i && e.j === j)));
+                enemies.push(new Enemy(i, j));
             }
         }
+
+        for (let k = enemies.length - 1; k >= 0; k--) {
+            enemies[k].update();
+            enemies[k].show();
+
+            // now this is safe because k exists:
+            if (enemies[k].i === player.i && enemies[k].j === player.j) {
+                showEndScreen("💀 You Lose!");
+            }
+        }
+
         //This is for seeing if pathing is being drawn
         // for (let i = 0; i < enemies.length; i++) {
         //     if (enemies[i].path) {
@@ -128,6 +140,13 @@ function draw() {
         //         }
         //     }
         // }
+        let elapsed = int((millis() - startTime) / 1000); // seconds
+        timerText = `Time: ${elapsed}s`;
+        document.getElementById("status").innerText = timerText;
+
+        // 👾 Show Kills
+        document.getElementById("score").innerText = `Enemies Killed: ${enemyKills}`;
+            
     }
     
 }
@@ -289,6 +308,10 @@ function Bullet(x, y , dir){
     this.y = y;
     this.dir = dir;
     this.dead = false;
+
+    this.prevI = floor(this.x / w);
+    this.prevJ = floor(this.y/ w);
+
     this.update = function(){
         //Bullet Movement
         if(this.dir === 'UP') this.y -= bulletSpeed;
@@ -300,21 +323,23 @@ function Bullet(x, y , dir){
         let col = floor(this.x / w);
         let row = floor(this.y/ w);
         let cell = grid[index(col,row)];
-
-        if(!cell){
+        let prevcell = grid[index(this.prevI, this.prevJ)];
+        if(!cell || !prevcell){
             this.dead = true;
             return;
         }
         //check for wall collision
         if(
-            (this.dir === 'UP' && cell.walls[0]) ||
-            (this.dir === 'RIGHT' && cell.walls[1]) ||
-            (this.dir === 'DOWN' && cell.walls[2]) ||
-            (this.dir === 'LEFT' && cell.walls[3])
+            (this.dir === 'UP' && prevcell.walls[0]) ||
+            (this.dir === 'RIGHT' && prevcell.walls[1]) ||
+            (this.dir === 'DOWN' && prevcell.walls[2]) ||
+            (this.dir === 'LEFT' && prevcell.walls[3])
         ){
             this.dead = true;
             return;
         }
+        this.prevI = col;
+        this.prevJ = row;
         
     }
 
@@ -442,3 +467,15 @@ function astar(start, end){
 
     return [];
 }
+
+function showEndScreen(message) {
+    const overlay = document.getElementById("overlay");
+    const gameMessage = document.getElementById("gameMessage");
+    overlay.classList.add("show");
+    gameMessage.innerText = message;
+    noLoop(); // stop draw loop
+}
+
+document.getElementById("restartBtn").addEventListener("click", function () {
+    location.reload(); // simple page reload to restart the game
+});
